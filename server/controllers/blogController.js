@@ -1,5 +1,13 @@
 // controllers/blogController.js
 
+const OpenAI = require('openai');
+
+// Initialize OpenAI client only if API key is available
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+
 exports.createBlog = async (req, res) => {
   try {
     const { title, content, category, tags, summary, published } = req.body;
@@ -282,6 +290,65 @@ exports.publishDraft = async (req, res) => {
   res.status(501).json({ message: 'Not implemented' });
 };
 
+exports.incrementBlogViews = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const blog = await req.prisma.blog.update({
+      where: { id: parseInt(id) },
+      data: { views: { increment: 1 } },
+    });
+    res.status(200).json({ views: blog.views });
+  } catch (error) {
+    console.error('Increment blog views error:', error);
+    res.status(500).json({ message: 'Server error incrementing blog views' });
+  }
+};
+
+exports.incrementBlogLikes = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const blog = await req.prisma.blog.update({
+      where: { id: parseInt(id) },
+      data: { likes: { increment: 1 } },
+    });
+    res.status(200).json({ likes: blog.likes });
+  } catch (error) {
+    console.error('Increment blog likes error:', error);
+    res.status(500).json({ message: 'Server error incrementing blog likes' });
+  }
+};
+
+exports.generateSummary = async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content || content.length < 20) {
+      return res.status(400).json({ message: 'Content is too short for summarization.' });
+    }
+    
+    // Check if OpenAI client is available
+    if (!openai) {
+      return res.status(503).json({ 
+        message: 'AI summary service is not available. Please set OPENAI_API_KEY environment variable.' 
+      });
+    }
+    
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        { role: 'system', content: 'Summarize the following blog content in 2-3 sentences.' },
+        { role: 'user', content }
+      ],
+      max_tokens: 100
+    });
+    
+    const summary = completion.choices[0].message.content.trim();
+    res.json({ summary });
+  } catch (error) {
+    console.error('OpenAI summary error:', error);
+    res.status(500).json({ message: 'Failed to generate summary' });
+  }
+};
+
 module.exports = {
   createBlog: exports.createBlog,
   getAllBlogs: exports.getAllBlogs,
@@ -290,5 +357,8 @@ module.exports = {
   deleteBlog: exports.deleteBlog,
   getMyBlogs: exports.getMyBlogs,
   generateAIContent: exports.generateAIContent,
-  publishDraft: exports.publishDraft
+  publishDraft: exports.publishDraft,
+  incrementBlogViews: exports.incrementBlogViews,
+  incrementBlogLikes: exports.incrementBlogLikes,
+  generateSummary: exports.generateSummary
 };

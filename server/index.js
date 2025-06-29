@@ -12,7 +12,8 @@ const prisma = new PrismaClient();
 
 // Middleware
 app.use(cors({
-  origin: [
+  origin: process.env.CLIENT_ORIGIN?.split(',') || [
+    'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:3003'
   ],
@@ -87,14 +88,6 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
   gracefulShutdown();
 });
-
-const path = require('path');
-app.use(express.static(path.join(__dirname, 'client/build')));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
-});
-
 
 // Start server
 const PORT = process.env.PORT || 5000;
