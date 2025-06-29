@@ -12,13 +12,20 @@ const prisma = new PrismaClient();
 
 // Middleware
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN?.split(',') || [
+  origin: [
+    'https://brainblog-1.onrender.com', // Your Render frontend URL
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:3003'
   ],
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept']
 }));
+
+// Handle preflight requests
+app.options('*', cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
