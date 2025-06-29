@@ -88,6 +88,14 @@ process.on('uncaughtException', (err) => {
   gracefulShutdown();
 });
 
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'client/build')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
+});
+
+
 // Start server
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
