@@ -1,4 +1,5 @@
 // Prisma schema for Supabase PostgreSQL database
+// Updated: 2025-06-30 - Force PostgreSQL provider
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
