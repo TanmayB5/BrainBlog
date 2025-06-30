@@ -1,5 +1,11 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// Debug environment variables
+console.log('Environment Variables Debug:');
+console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+console.log('Final API_BASE_URL:', API_BASE_URL);
+console.log('All env vars:', import.meta.env);
+
 export { API_BASE_URL };
 
 const getAuthHeaders = () => {
