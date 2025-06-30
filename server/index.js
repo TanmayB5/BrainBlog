@@ -54,6 +54,31 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/blogs', blogRoutes);
 
+// Debug routes to test server connectivity
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'BrainBlog Server is running!',
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    port: process.env.PORT || 5000
+  });
+});
+
+app.get('/api', (req, res) => {
+  res.json({ 
+    message: 'BrainBlog API is running!',
+    availableRoutes: [
+      '/api/auth/login',
+      '/api/auth/register', 
+      '/api/blogs',
+      '/api/blogs/my',
+      '/api/test'
+    ],
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Test route
 app.get('/api/test', (req, res) => {
   res.json({ 
