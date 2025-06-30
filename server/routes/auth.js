@@ -7,7 +7,11 @@ console.log('✅ auth.js (router) file executed');
 
 // Test route
 router.get('/test', (req, res) => {
-  res.send('✅ Auth test route working!');
+  res.json({ 
+    message: '✅ Auth test route working!',
+    status: 'success',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Public routes

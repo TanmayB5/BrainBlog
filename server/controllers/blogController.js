@@ -120,7 +120,15 @@ exports.getAllBlogs = async (req, res) => {
     });
   } catch (error) {
     console.error('Get blogs error:', error);
-    res.status(500).json({ message: 'Server error fetching blogs' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    res.status(500).json({ 
+      message: 'Server error fetching blogs',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
