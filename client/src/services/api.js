@@ -10,8 +10,11 @@ const getAuthHeaders = () => {
 export { getAuthHeaders };
 
 const handleResponse = async (response) => {
+  console.log(`API Response: ${response.status} ${response.statusText}`, response.url);
+  
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Network error' }));
+    console.error('API Error:', error);
     throw new Error(error.message || `HTTP error! status: ${response.status}`);
   }
   return response.json();
@@ -19,46 +22,87 @@ const handleResponse = async (response) => {
 
 export const authAPI = {
   login: async (credentials) => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-    });
-    return handleResponse(response);
+    const url = `${API_BASE_URL}/auth/login`;
+    console.log('Login request to:', url);
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials),
+      });
+      return handleResponse(response);
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   },
 
   register: async (userData) => {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
-    return handleResponse(response);
+    const url = `${API_BASE_URL}/auth/register`;
+    console.log('Register request to:', url);
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+      return handleResponse(response);
+    } catch (error) {
+      console.error('Register error:', error);
+      throw error;
+    }
   },
 
   getProfile: async () => {
-    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
-    });
-    return handleResponse(response);
+    const url = `${API_BASE_URL}/auth/profile`;
+    console.log('Get profile request to:', url);
+    
+    try {
+      const response = await fetch(url, {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
+      return handleResponse(response);
+    } catch (error) {
+      console.error('Get profile error:', error);
+      throw error;
+    }
   }
 };
 
 export const blogAPI = {
   getBlogs: async (queryParams = '') => {
-    const response = await fetch(`${API_BASE_URL}/blogs${queryParams}`);
-    return handleResponse(response);
+    const url = `${API_BASE_URL}/blogs${queryParams}`;
+    console.log('Fetching blogs from:', url);
+    console.log('API_BASE_URL:', API_BASE_URL);
+    
+    try {
+      const response = await fetch(url);
+      return handleResponse(response);
+    } catch (error) {
+      console.error('getBlogs error:', error);
+      throw error;
+    }
   },
 
   getBlog: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/blogs/${id}`);
-    return handleResponse(response);
+    const url = `${API_BASE_URL}/blogs/${id}`;
+    console.log('Fetching blog from:', url);
+    
+    try {
+      const response = await fetch(url);
+      return handleResponse(response);
+    } catch (error) {
+      console.error('getBlog error:', error);
+      throw error;
+    }
   },
 
   createBlog: async (blogData) => {

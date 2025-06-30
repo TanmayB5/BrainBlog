@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { blogAPI } from "../services/api";
+import ApiTest from "../components/ApiTest";
 
 export default function Home() {
   const [featuredBlogs, setFeaturedBlogs] = useState([]);
