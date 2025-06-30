@@ -88,6 +88,26 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Database test route
+app.get('/api/test-db', async (req, res) => {
+  try {
+    // Test database connection
+    await req.prisma.$queryRaw`SELECT 1`;
+    res.json({ 
+      message: 'Database connection successful!',
+      status: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Database test error:', error);
+    res.status(500).json({ 
+      message: 'Database connection failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('[SERVER ERROR]', err.stack);
