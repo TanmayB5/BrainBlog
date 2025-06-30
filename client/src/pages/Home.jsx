@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { blogAPI } from "../services/api";
-import ApiTest from "../components/ApiTest";
-import EnvCheck from "../components/EnvCheck";
 
 export default function Home() {
   const [featuredBlogs, setFeaturedBlogs] = useState([]);
@@ -80,16 +78,6 @@ export default function Home() {
                 <div className="text-text-medium font-medium">Monthly Views</div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* API Test Section - Temporary for debugging */}
-      <section className="py-8 bg-white">
-        <div className="w-full px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto space-y-6">
-            <ApiTest />
-            <EnvCheck />
           </div>
         </div>
       </section>
