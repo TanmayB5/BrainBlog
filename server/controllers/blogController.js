@@ -1,12 +1,78 @@
 // controllers/blogController.js
 
-const OpenAI = require('openai');
 const supabase = require('../supabaseClient');
 
-// Initialize OpenAI client only if API key is available
+// Initialize Hugging Face client
+let hfApiKey = process.env.HUGGINGFACE_API_KEY;
+let useHuggingFace = !!hfApiKey;
+
+// Fallback to OpenAI if Hugging Face is not configured
 let openai = null;
-if (process.env.OPENAI_API_KEY) {
+if (!useHuggingFace && process.env.OPENAI_API_KEY) {
+  const OpenAI = require('openai');
   openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  useHuggingFace = false;
+}
+
+// Helper function to call Hugging Face API with fallback models
+async function callHuggingFaceAPI(prompt, primaryModel, fallbackModels = []) {
+  const models = [primaryModel, ...fallbackModels];
+  
+  for (const model of models) {
+    try {
+      const response = await fetch(
+        `https://api-inference.huggingface.co/models/${model}`,
+        {
+          headers: {
+            Authorization: `Bearer ${hfApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          method: 'POST',
+          body: JSON.stringify({ inputs: prompt }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.text();
+        if (response.status === 503) {
+          console.log(`[AI] Model ${model} is loading, trying next...`);
+          continue;
+        }
+        throw new Error(`Hugging Face API error: ${error}`);
+      }
+
+      const result = await response.json();
+      const output = result[0]?.generated_text || result[0]?.summary_text || result[0]?.text || '';
+      
+      if (output && output.trim()) {
+        console.log(`[AI] Success with model: ${model}`);
+        return output;
+      }
+    } catch (error) {
+      console.log(`[AI] Failed with model ${model}: ${error.message}`);
+      if (model === models[models.length - 1]) {
+        throw error;
+      }
+    }
+  }
+  
+  throw new Error('All models failed');
+}
+
+// Helper function to call OpenAI API (fallback)
+async function callOpenAIAPI(messages, maxTokens = 150) {
+  if (!openai) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-3.5-turbo',
+    messages,
+    max_tokens: maxTokens,
+    temperature: 0.3
+  });
+
+  return completion.choices[0].message.content.trim();
 }
 
 exports.createBlog = async (req, res) => {
@@ -57,8 +123,9 @@ exports.createBlog = async (req, res) => {
 
 exports.getAllBlogs = async (req, res) => {
   try {
+    console.log('[getAllBlogs] Query params:', req.query);
     const { page = 1, limit = 10, category, search, sort = 'newest' } = req.query;
-    let query = supabase.from('blog').select('*, user:id(name, email)').eq('published', true);
+    let query = supabase.from('blog').select('*').eq('published', true);
 
     if (category) {
       query = query.eq('category', category);
@@ -82,9 +149,11 @@ exports.getAllBlogs = async (req, res) => {
     const to = from + parseInt(limit) - 1;
     query = query.range(from, to);
 
+    console.log('[getAllBlogs] Supabase query range:', { from, to });
     const { data: blogs, error, count } = await query;
+    console.log('[getAllBlogs] Blogs data:', blogs);
     if (error) {
-      console.error('Get blogs error:', error);
+      console.error('[getAllBlogs] Get blogs error:', error);
       return res.status(500).json({ message: 'Server error fetching blogs', error: error.message });
     }
 
@@ -92,6 +161,7 @@ exports.getAllBlogs = async (req, res) => {
     const { count: total } = await supabase.from('blog').select('*', { count: 'exact', head: true }).eq('published', true);
     const totalPages = Math.ceil(total / parseInt(limit));
 
+    console.log('[getAllBlogs] Pagination:', { total, totalPages });
     res.status(200).json({
       blogs,
       currentPage: parseInt(page),
@@ -101,7 +171,7 @@ exports.getAllBlogs = async (req, res) => {
       hasPrev: page > 1
     });
   } catch (error) {
-    console.error('Get blogs error:', error);
+    console.error('[getAllBlogs] Exception:', error);
     res.status(500).json({ message: 'Server error fetching blogs' });
   }
 };
@@ -109,7 +179,7 @@ exports.getAllBlogs = async (req, res) => {
 exports.getBlogById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { data: blog, error } = await supabase.from('blog').select('*, user:id(name, email)').eq('id', id).single();
+    const { data: blog, error } = await supabase.from('blog').select('*').eq('id', id).single();
     if (error) {
       return res.status(404).json({ message: 'Blog not found', error: error.message });
     }
@@ -172,15 +242,21 @@ exports.deleteBlog = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const blog = await supabase.from('blog').delete().eq('id', id);
-
-    if (blog.error) {
-      return res.status(404).json({ message: 'Blog not found', error: blog.error.message });
+    // Fetch the blog first
+    const { data: blog, error: fetchError } = await supabase.from('blog').select('*').eq('id', id).single();
+    if (fetchError || !blog) {
+      return res.status(404).json({ message: 'Blog not found', error: fetchError?.message });
     }
 
     // Check ownership
-    if (blog.data.authorid !== req.user.userId && req.user.role !== 'admin') {
+    if (blog.authorid !== req.user.userId && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Not authorized to delete this blog' });
+    }
+
+    // Now delete
+    const { error: deleteError } = await supabase.from('blog').delete().eq('id', id);
+    if (deleteError) {
+      return res.status(500).json({ message: 'Server error deleting blog', error: deleteError.message });
     }
 
     res.status(200).json({ message: 'Blog deleted successfully' });
@@ -195,7 +271,7 @@ exports.getMyBlogs = async (req, res) => {
     const { page = 1, limit = 10 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const { data: blogs, error } = await supabase.from('blog').select('*, user:id(name, email)').eq('authorid', req.user.userId).order('updatedat', { ascending: false }).range(skip, skip + parseInt(limit) - 1);
+    const { data: blogs, error } = await supabase.from('blog').select('*').eq('authorid', req.user.userId).order('updatedat', { ascending: false }).range(skip, skip + parseInt(limit) - 1);
     if (error) {
       console.error('Get user blogs error:', error);
       return res.status(500).json({ message: 'Server error fetching user blogs', error: error.message });
@@ -227,12 +303,17 @@ exports.publishDraft = async (req, res) => {
 exports.incrementBlogViews = async (req, res) => {
   try {
     const { id } = req.params;
-    const { data: blog, error } = await supabase.from('blog').update({ views: { increment: 1 } }).eq('id', id).select('views').single();
+    // Fetch current views
+    const { data: blog, error: fetchError } = await supabase.from('blog').select('views').eq('id', id).single();
+    if (fetchError || !blog) {
+      return res.status(404).json({ message: 'Blog not found', error: fetchError?.message });
+    }
+    const newViews = (blog.views || 0) + 1;
+    const { data: updated, error } = await supabase.from('blog').update({ views: newViews }).eq('id', id).select('views').single();
     if (error) {
-      console.error('Increment blog views error:', error);
       return res.status(500).json({ message: 'Server error incrementing blog views' });
     }
-    res.status(200).json({ views: blog.views });
+    res.status(200).json({ views: updated.views });
   } catch (error) {
     console.error('Increment blog views error:', error);
     res.status(500).json({ message: 'Server error incrementing blog views' });
@@ -242,12 +323,17 @@ exports.incrementBlogViews = async (req, res) => {
 exports.incrementBlogLikes = async (req, res) => {
   try {
     const { id } = req.params;
-    const { data: blog, error } = await supabase.from('blog').update({ likes: { increment: 1 } }).eq('id', id).select('likes').single();
+    // Fetch current likes
+    const { data: blog, error: fetchError } = await supabase.from('blog').select('likes').eq('id', id).single();
+    if (fetchError || !blog) {
+      return res.status(404).json({ message: 'Blog not found', error: fetchError?.message });
+    }
+    const newLikes = (blog.likes || 0) + 1;
+    const { data: updated, error } = await supabase.from('blog').update({ likes: newLikes }).eq('id', id).select('likes').single();
     if (error) {
-      console.error('Increment blog likes error:', error);
       return res.status(500).json({ message: 'Server error incrementing blog likes' });
     }
-    res.status(200).json({ likes: blog.likes });
+    res.status(200).json({ likes: updated.likes });
   } catch (error) {
     console.error('Increment blog likes error:', error);
     res.status(500).json({ message: 'Server error incrementing blog likes' });
@@ -260,28 +346,302 @@ exports.generateSummary = async (req, res) => {
     if (!content || content.length < 20) {
       return res.status(400).json({ message: 'Content is too short for summarization.' });
     }
+
+    if (!useHuggingFace && !openai) {
+      console.error('No AI service configured.');
+      return res.status(503).json({ message: 'AI summary service is not available. Please set HUGGINGFACE_API_KEY or OPENAI_API_KEY in your server .env file.' });
+    }
+
+    let summary;
     
-    // Check if OpenAI client is available
-    if (!openai) {
-      return res.status(503).json({ 
-        message: 'AI summary service is not available. Please set OPENAI_API_KEY environment variable.' 
-      });
+    if (useHuggingFace) {
+      // Use Hugging Face for summarization with better prompt
+      const prompt = `Summarize the following blog content in exactly 2-3 sentences, maximum 150 characters: ${content}`;
+      console.log('[AI SUMMARY] Using Hugging Face API...');
+      
+      try {
+        summary = await callHuggingFaceAPI(
+          prompt, 
+          "facebook/bart-large-cnn",
+          ["sshleifer/distilbart-cnn-12-6", "facebook/bart-base"]
+        );
+      } catch (error) {
+        console.log('[AI SUMMARY] All summarization models failed, trying text generation...');
+        summary = await callHuggingFaceAPI(
+          `Summarize this in 2-3 sentences: ${content}`,
+          "sshleifer/distilbart-cnn-12-6",
+          ["facebook/bart-base", "facebook/bart-large-cnn"]
+        );
+      }
+      
+      // Post-process to ensure it's concise
+      if (summary && summary.length > 150) {
+        const sentences = summary.split('.').filter(s => s.trim().length > 0);
+        summary = sentences.slice(0, 2).join('.') + '.';
+        if (summary.length > 150) {
+          summary = summary.substring(0, 147) + '...';
+        }
+      }
+    } else {
+      // Fallback to OpenAI
+      const prompt = `Please provide a concise summary of the following blog content in exactly 2-3 sentences, maximum 150 characters:
+
+${content}
+
+Summary:`;
+      
+      console.log('[AI SUMMARY] Using OpenAI API...');
+      summary = await callOpenAIAPI([
+        { 
+          role: 'system', 
+          content: 'You are a helpful assistant that creates concise, engaging summaries of blog content. Keep summaries under 150 characters when possible.' 
+        },
+        { role: 'user', content: prompt }
+      ], 150);
     }
     
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: 'Summarize the following blog content in 2-3 sentences.' },
-        { role: 'user', content }
-      ],
-      max_tokens: 100
-    });
-    
-    const summary = completion.choices[0].message.content.trim();
+    console.log('[AI SUMMARY] Generated summary:', summary);
     res.json({ summary });
   } catch (error) {
-    console.error('OpenAI summary error:', error);
-    res.status(500).json({ message: 'Failed to generate summary' });
+    console.error('AI summary error:', error);
+    res.status(500).json({ message: 'Failed to generate summary', error: error.message });
+  }
+};
+
+exports.generateSEOContent = async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ message: 'Title and content are required.' });
+    }
+
+    if (!useHuggingFace && !openai) {
+      return res.status(503).json({ message: 'AI service not available. Set HUGGINGFACE_API_KEY or OPENAI_API_KEY.' });
+    }
+
+    let result;
+    
+    if (useHuggingFace) {
+      const prompt = `Generate SEO content for this blog post:
+Title: ${title}
+Content: ${content.substring(0, 500)}
+
+Provide:
+1. Meta Description (max 160 characters)
+2. SEO Keywords (8 keywords, comma-separated)
+
+Format:
+Meta Description: [description]
+SEO Keywords: [keywords]`;
+      
+      result = await callHuggingFaceAPI(
+        prompt, 
+        "sshleifer/distilbart-cnn-12-6",
+        ["facebook/bart-base", "facebook/bart-large-cnn"]
+      );
+    } else {
+      const prompt = `Please provide SEO optimization for the following blog post:
+
+Title: ${title}
+Content: ${content.substring(0, 1000)}...
+
+Please provide:
+1. Meta Description: A compelling meta description (max 160 characters)
+2. SEO Keywords: 8 relevant keywords separated by commas
+
+Format your response as:
+Meta Description: [your meta description here]
+SEO Keywords: [your keywords here]`;
+      
+      result = await callOpenAIAPI([
+        { 
+          role: 'system', 
+          content: 'You are an SEO expert. Provide clear, actionable SEO recommendations with proper formatting.' 
+        },
+        { role: 'user', content: prompt }
+      ], 200);
+    }
+    
+    res.json({ result });
+  } catch (error) {
+    console.error('AI SEO error:', error);
+    res.status(500).json({ message: 'Failed to generate SEO content', error: error.message });
+  }
+};
+
+exports.enhanceContent = async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ message: 'Content is required.' });
+    }
+
+    if (!useHuggingFace && !openai) {
+      return res.status(503).json({ message: 'AI service not available. Set HUGGINGFACE_API_KEY or OPENAI_API_KEY.' });
+    }
+
+    let enhancedContent;
+    
+    if (useHuggingFace) {
+      const prompt = `Enhance this blog content by adding Key Takeaways and Conclusion sections:
+
+${content}
+
+Add:
+1. Key Takeaways (3-4 bullet points)
+2. Conclusion (compelling ending)
+
+Enhanced content:`;
+      
+      enhancedContent = await callHuggingFaceAPI(
+        prompt, 
+        "sshleifer/distilbart-cnn-12-6",
+        ["facebook/bart-base", "facebook/bart-large-cnn"]
+      );
+    } else {
+      const prompt = `Please enhance the following blog content by adding a 'Key Takeaways' section and a 'Conclusion' section. Maintain the original content and add these sections at the end:
+
+${content}
+
+Please add:
+1. Key Takeaways: 3-4 bullet points summarizing the main insights
+2. Conclusion: A compelling conclusion that ties everything together
+
+Enhanced content:`;
+      
+      enhancedContent = await callOpenAIAPI([
+        { 
+          role: 'system', 
+          content: 'You are a content enhancement expert. Add valuable sections while preserving the original content structure and tone.' 
+        },
+        { role: 'user', content: prompt }
+      ], 500);
+    }
+    
+    res.json({ enhancedContent });
+  } catch (error) {
+    console.error('AI enhancement error:', error);
+    res.status(500).json({ message: 'Failed to enhance content', error: error.message });
+  }
+};
+
+exports.generateTags = async (req, res) => {
+  try {
+    const { title, content, category } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ message: 'Title and content are required.' });
+    }
+
+    if (!useHuggingFace && !openai) {
+      return res.status(503).json({ message: 'AI service not available. Set HUGGINGFACE_API_KEY or OPENAI_API_KEY.' });
+    }
+
+    let tags;
+    
+    if (useHuggingFace) {
+      const prompt = `Suggest 5 relevant tags for this blog post:
+Title: ${title}
+Content: ${content.substring(0, 300)}
+Category: ${category || 'Not specified'}
+
+Tags (comma-separated):`;
+      
+      tags = await callHuggingFaceAPI(
+        prompt, 
+        "sshleifer/distilbart-cnn-12-6",
+        ["facebook/bart-base", "facebook/bart-large-cnn"]
+      );
+    } else {
+      const prompt = `Please suggest 5 relevant tags for the following blog post. Tags should be single words or short phrases, separated by commas:
+
+Title: ${title}
+Content: ${content.substring(0, 800)}...
+Category: ${category || 'Not specified'}
+
+Tags:`;
+      
+      tags = await callOpenAIAPI([
+        { 
+          role: 'system', 
+          content: 'You are a content tagging expert. Provide relevant, specific tags that would help readers find this content.' 
+        },
+        { role: 'user', content: prompt }
+      ], 100);
+    }
+    
+    res.json({ tags });
+  } catch (error) {
+    console.error('AI tags error:', error);
+    res.status(500).json({ message: 'Failed to generate tags', error: error.message });
+  }
+};
+
+exports.addComment = async (req, res) => {
+  try {
+    const { id } = req.params; // blog id
+    const { content } = req.body;
+    const userId = req.user.userId;
+    if (!content || !userId) {
+      return res.status(400).json({ message: 'Content and user required' });
+    }
+    const { data, error } = await supabase.from('blog_comment').insert([
+      { blog_id: id, user_id: userId, content }
+    ]).select('*').single();
+    if (error) {
+      return res.status(500).json({ message: 'Error adding comment', error: error.message });
+    }
+    res.status(201).json({ comment: data });
+  } catch (error) {
+    console.error('Add comment error:', error);
+    res.status(500).json({ message: 'Server error adding comment' });
+  }
+};
+
+exports.generateHeadlines = async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    if (!content) {
+      return res.status(400).json({ message: 'Content is required.' });
+    }
+
+    if (!useHuggingFace && !openai) {
+      return res.status(503).json({ message: 'AI service not available. Set HUGGINGFACE_API_KEY or OPENAI_API_KEY.' });
+    }
+
+    let headlinesRaw;
+    let headlines = [];
+    
+    const prompt = `Generate 3 creative, catchy, and SEO-friendly blog post headlines for the following content. Each headline should be on a new line, numbered 1 to 3. Do NOT repeat the content, only output the headlines.\n\nContent:\n${content.substring(0, 800)}\n\nHeadlines:\n1.`;
+    
+    if (useHuggingFace) {
+      headlinesRaw = await callHuggingFaceAPI(
+        prompt, 
+        "sshleifer/distilbart-cnn-12-6",
+        ["facebook/bart-base", "facebook/bart-large-cnn"]
+      );
+    } else {
+      headlinesRaw = await callOpenAIAPI([
+        { 
+          role: 'system', 
+          content: 'You are a headline generation expert. Create engaging, SEO-friendly blog post titles.' 
+        },
+        { role: 'user', content: prompt }
+      ], 200);
+    }
+    
+    // Parse the response to extract headlines
+    headlines = headlinesRaw
+      .split('\n')
+      .map(line => line.replace(/^\d+\.\s*/, '').trim())
+      .filter(line => line.length > 0 && line.length < 120);
+    
+    // Only return up to 3 headlines
+    headlines = headlines.slice(0, 3);
+    
+    res.json({ headlines });
+  } catch (error) {
+    console.error('AI headlines error:', error);
+    res.status(500).json({ message: 'Failed to generate headlines', error: error.message });
   }
 };
 
@@ -296,5 +656,10 @@ module.exports = {
   publishDraft: exports.publishDraft,
   incrementBlogViews: exports.incrementBlogViews,
   incrementBlogLikes: exports.incrementBlogLikes,
-  generateSummary: exports.generateSummary
+  generateSummary: exports.generateSummary,
+  generateSEOContent: exports.generateSEOContent,
+  enhanceContent: exports.enhanceContent,
+  generateTags: exports.generateTags,
+  addComment: exports.addComment,
+  generateHeadlines: exports.generateHeadlines
 };

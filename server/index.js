@@ -1,14 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
-const { PrismaClient } = require('@prisma/client');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
 const blogRoutes = require('./routes/blogs');
 
 const app = express();
-const prisma = new PrismaClient();
 
 // Middleware
 app.use(cors({
@@ -16,7 +14,8 @@ app.use(cors({
     'https://brainblog-1.onrender.com', // Your Render frontend URL
     'http://localhost:5173',
     'http://localhost:3000',
-    'http://localhost:3003'
+    'http://localhost:3003',
+    'http://localhost:3001' // Added for local frontend on port 3001
   ],
   credentials: true,
   optionsSuccessStatus: 200,
@@ -44,12 +43,6 @@ app.use(session({
   }
 }));
 
-// Make Prisma available to routes
-app.use((req, res, next) => {
-  req.prisma = prisma;
-  next();
-});
-
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/blogs', blogRoutes);
@@ -72,40 +65,15 @@ app.get('/api', (req, res) => {
       '/api/auth/login',
       '/api/auth/register', 
       '/api/blogs',
-      '/api/blogs/my',
-      '/api/test'
+      '/api/blogs/my'
     ],
     timestamp: new Date().toISOString()
   });
 });
 
-// Test route
+// Test endpoint for API health check
 app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'BrainBlog API is running with MySQL + Prisma!',
-    status: 'healthy',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Database test route
-app.get('/api/test-db', async (req, res) => {
-  try {
-    // Test database connection
-    await req.prisma.$queryRaw`SELECT 1`;
-    res.json({ 
-      message: 'Database connection successful!',
-      status: 'connected',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Database test error:', error);
-    res.status(500).json({ 
-      message: 'Database connection failed',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
+  res.json({ message: 'Test endpoint working!' });
 });
 
 // Error handling middleware
@@ -126,28 +94,12 @@ app.use('*', (req, res) => {
   });
 });
 
-// Graceful shutdown
-const gracefulShutdown = async () => {
-  console.log('Shutting down gracefully...');
-  await prisma.$disconnect();
-  console.log('Prisma disconnected');
-  process.exit(0);
-};
-
-process.on('SIGINT', gracefulShutdown);
-process.on('SIGTERM', gracefulShutdown);
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-  gracefulShutdown();
-});
-
 // Start server
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT}`);
   console.log(`📱 Frontend URL: ${process.env.CLIENT_URL || 'http://localhost:3000'}`);
   console.log(`🔧 API URL: http://localhost:${PORT}/api`);
-  console.log(`🗄️ Database: MySQL with Prisma`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}\n`);
 });
 

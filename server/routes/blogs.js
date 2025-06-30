@@ -13,7 +13,12 @@ const {
   publishDraft,
   incrementBlogViews,
   incrementBlogLikes,
-  generateSummary
+  generateSummary,
+  addComment,
+  generateSEOContent,
+  enhanceContent,
+  generateTags,
+  generateHeadlines
 } = require('../controllers/blogController');
 const authenticateToken = require('../middlewares/authMiddleware');
 
@@ -35,9 +40,16 @@ router.get('/', getAllBlogs);
 // (Optional) AI content route if implemented
 router.post('/generate-ai-content', authenticateToken, generateAIContent);
 
-router.post('/generate-summary', authenticateToken, generateSummary);
+router.post('/generate-summary', authenticateToken, enhanceContent);
+router.post('/generate-headlines', authenticateToken, generateHeadlines);
 
 router.patch('/:id/view', incrementBlogViews);
 router.patch('/:id/like', incrementBlogLikes);
+
+router.post('/:id/comment', authenticateToken, addComment);
+
+router.post('/generate-seo', authenticateToken, generateSEOContent);
+router.post('/enhance-content', authenticateToken, enhanceContent);
+router.post('/generate-tags', authenticateToken, generateTags);
 
 module.exports = router;

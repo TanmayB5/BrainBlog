@@ -164,6 +164,22 @@ export const blogAPI = {
   incrementLike: async (id) => {
     const response = await fetch(`${API_BASE_URL}/blogs/${id}/like`, {
       method: 'PATCH',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+    });
+    return handleResponse(response);
+  },
+
+  addComment: async (blogId, content) => {
+    const response = await fetch(`${API_BASE_URL}/blogs/${blogId}/comment`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content }),
     });
     return handleResponse(response);
   }

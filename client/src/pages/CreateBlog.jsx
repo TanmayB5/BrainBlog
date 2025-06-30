@@ -27,6 +27,7 @@ export default function CreateBlog() {
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [readingTime, setReadingTime] = useState(0);
+  const [headlineOptions, setHeadlineOptions] = useState([]);
 
   React.useEffect(() => {
     // Calculate word count and reading time
@@ -47,7 +48,7 @@ export default function CreateBlog() {
   // AI Content Generation Functions
   const generateAISummary = async () => {
     if (!formData.content) {
-      alert("Please write some content first!");
+      setError('Please write some content first!');
       return;
     }
     setAiLoading(true);
@@ -55,48 +56,85 @@ export default function CreateBlog() {
       const summary = await aiService.generateSummary(formData.content);
       setFormData(prev => ({
         ...prev,
-        summary
+        summary // Only set summary, not content
       }));
       setAiResults(prev => ({ ...prev, summary: true }));
-      alert('✅ AI summary generated successfully!');
     } catch (error) {
       console.error('AI generation error:', error);
-      alert('❌ Failed to generate AI summary. Please try again.');
+      setError('Failed to generate AI summary. Please try again.');
     } finally {
       setAiLoading(false);
     }
   };
 
-  const generateSEOContent = async () => {
-    if (!formData.title || !formData.content) {
-      alert("Please add title and content first!");
+  const generateHeadlines = async () => {
+    if (!formData.content) {
+      setError('Please write some content first!');
       return;
     }
-    
     setAiLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const headlines = await aiService.generateHeadlines(formData.title, formData.content);
+      setHeadlineOptions(headlines);
+      setAiResults(prev => ({ ...prev, headlines: true }));
+      setError(''); // Clear any previous errors
+    } catch (error) {
+      console.error('Headline generation error:', error);
+      setError('Failed to generate headlines. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const selectHeadline = (headline) => {
+    setFormData(prev => ({
+      ...prev,
+      title: headline
+    }));
+    setHeadlineOptions([]);
+  };
+
+  const generateSEOContent = async () => {
+    if (!formData.title || !formData.content) {
+      setError('Please add title and content first!');
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const result = await aiService.generateSEOContent(formData.title, formData.content);
+      // Parse the AI response to extract meta description and keywords
+      const lines = result.split('\n');
+      let metaDescription = '';
+      let seoKeywords = '';
       
-      // Generate SEO-optimized meta description
-      const metaDescription = `Discover ${formData.title.toLowerCase()} and learn more about this fascinating topic. Read our comprehensive guide with expert insights and practical tips.`;
+      for (const line of lines) {
+        if (line.toLowerCase().includes('meta description') || line.toLowerCase().includes('description:')) {
+          metaDescription = line.split(':').slice(1).join(':').trim();
+        } else if (line.toLowerCase().includes('keyword') || line.toLowerCase().includes('tags:')) {
+          seoKeywords = line.split(':').slice(1).join(':').trim();
+        }
+      }
       
-      // Generate SEO keywords from title and content
-      const titleWords = formData.title.toLowerCase().split(' ').filter(word => word.length > 3);
-      const contentWords = formData.content.toLowerCase().match(/\b\w{4,}\b/g) || [];
-      const topWords = [...new Set([...titleWords, ...contentWords.slice(0, 10)])];
-      const seoKeywords = topWords.slice(0, 8).join(', ') + ', blog, guide, tips';
+      // Fallback if parsing fails
+      if (!metaDescription) {
+        metaDescription = `Discover ${formData.title.toLowerCase()} and learn more about this fascinating topic. Read our comprehensive guide with expert insights and practical tips.`;
+      }
+      if (!seoKeywords) {
+        const titleWords = formData.title.toLowerCase().split(' ').filter(word => word.length > 3);
+        const contentWords = formData.content.toLowerCase().match(/\b\w{4,}\b/g) || [];
+        const topWords = [...new Set([...titleWords, ...contentWords.slice(0, 10)])];
+        seoKeywords = topWords.slice(0, 8).join(', ') + ', blog, guide, tips';
+      }
       
       setFormData(prev => ({
         ...prev,
         metaDescription: metaDescription.substring(0, 160),
         seoKeywords
       }));
-      
       setAiResults(prev => ({ ...prev, seo: true }));
-      alert('✅ SEO content generated successfully!');
     } catch (error) {
       console.error('SEO generation error:', error);
-      alert('❌ Failed to generate SEO content. Please try again.');
+      setError('Failed to generate SEO content. Please try again.');
     } finally {
       setAiLoading(false);
     }
@@ -104,33 +142,20 @@ export default function CreateBlog() {
 
   const enhanceContent = async () => {
     if (!formData.content) {
-      alert("Please write some content first!");
+      setError('Please write some content first!');
       return;
     }
-    
     setAiLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Simulate content enhancement
-      const enhancedContent = formData.content + 
-        "\n\n## Key Takeaways\n\n" +
-        "- This article provides comprehensive insights into the topic\n" +
-        "- Practical applications and real-world examples are included\n" +
-        "- Further reading and resources are recommended for deeper understanding\n\n" +
-        "## Conclusion\n\n" +
-        "This comprehensive guide covers the essential aspects of the topic, providing readers with valuable insights and practical knowledge to apply in their own context.";
-      
+      const { enhancedContent } = await aiService.enhanceContent(formData.content);
       setFormData(prev => ({
         ...prev,
         content: enhancedContent
       }));
-      
       setAiResults(prev => ({ ...prev, enhancement: true }));
-      alert('✅ Content enhanced successfully!');
     } catch (error) {
       console.error('Content enhancement error:', error);
-      alert('❌ Failed to enhance content. Please try again.');
+      setError('Failed to enhance content. Please try again.');
     } finally {
       setAiLoading(false);
     }
@@ -138,36 +163,20 @@ export default function CreateBlog() {
 
   const generateTags = async () => {
     if (!formData.title || !formData.content) {
-      alert("Please add title and content first!");
+      setError('Please add title and content first!');
       return;
     }
-    
     setAiLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Generate relevant tags
-      const words = (formData.title + ' ' + formData.content).toLowerCase();
-      const commonTags = ['technology', 'tutorial', 'guide', 'tips', 'development', 'programming', 'web', 'design', 'business', 'productivity'];
-      const relevantTags = commonTags.filter(tag => words.includes(tag));
-      
-      // Add category as tag if not already included
-      if (formData.category && !relevantTags.includes(formData.category.toLowerCase())) {
-        relevantTags.unshift(formData.category.toLowerCase());
-      }
-      
-      const generatedTags = relevantTags.slice(0, 5).join(', ');
-      
+      const { tags } = await aiService.generateTags(formData.title, formData.content, formData.category);
       setFormData(prev => ({
         ...prev,
-        tags: generatedTags
+        tags
       }));
-      
       setAiResults(prev => ({ ...prev, tags: true }));
-      alert('✅ Tags generated successfully!');
     } catch (error) {
       console.error('Tag generation error:', error);
-      alert('❌ Failed to generate tags. Please try again.');
+      setError('Failed to generate tags. Please try again.');
     } finally {
       setAiLoading(false);
     }
@@ -190,16 +199,14 @@ export default function CreateBlog() {
         published,
         tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
       };
+      // Remove authorid if present
+      delete blogData.authorid;
       
       const response = await blogAPI.createBlog(blogData);
       console.log('Blog created successfully:', response);
       
-      if (published) {
-        alert('✅ Blog published successfully!');
-      } else {
-        alert('✅ Blog saved as draft successfully!');
-      }
-      
+      // Clear any errors and navigate
+      setError('');
       navigate("/my-blogs");
     } catch (error) {
       console.error("Error creating blog:", error);
@@ -283,16 +290,16 @@ export default function CreateBlog() {
                   <div className="grid md:grid-cols-2 gap-4">
                     <button
                       type="button"
-                      onClick={generateAISummary}
+                      onClick={generateHeadlines}
                       disabled={aiLoading}
                       className="bg-white border border-medium-beige p-4 rounded-lg hover:bg-cream transition-colors text-left disabled:opacity-50"
                     >
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="text-2xl">📝</span>
-                        <span className="font-semibold text-text-dark">Generate Summary</span>
-                        {aiResults.summary && <span className="text-green-600">✅</span>}
+                        <span className="text-2xl">📰</span>
+                        <span className="font-semibold text-text-dark">Generate Headlines</span>
+                        {aiResults.headlines && <span className="text-green-600">✅</span>}
                       </div>
-                      <p className="text-text-medium text-sm">Create an AI-powered summary of your content</p>
+                      <p className="text-text-medium text-sm">Create catchy blog post titles</p>
                     </button>
 
                     <button
@@ -316,11 +323,11 @@ export default function CreateBlog() {
                       className="bg-white border border-medium-beige p-4 rounded-lg hover:bg-cream transition-colors text-left disabled:opacity-50"
                     >
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="text-2xl">✨</span>
-                        <span className="font-semibold text-text-dark">Enhance Content</span>
+                        <span className="text-2xl">📝</span>
+                        <span className="font-semibold text-text-dark">AI Summarize</span>
                         {aiResults.enhancement && <span className="text-green-600">✅</span>}
                       </div>
-                      <p className="text-text-medium text-sm">Improve content structure and add conclusions</p>
+                      <p className="text-text-medium text-sm">Create an AI-powered summary of your content</p>
                     </button>
 
                     <button
@@ -504,6 +511,24 @@ export default function CreateBlog() {
                   </button>
                 </div>
               </div>
+
+              {headlineOptions.length > 0 && (
+                <div className="mb-4">
+                  <div className="font-medium text-text-dark mb-2">Choose a headline:</div>
+                  <div className="flex flex-col gap-2">
+                    {headlineOptions.map((headline, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => selectHeadline(headline)}
+                        className="bg-light-beige border border-medium-beige rounded-lg px-4 py-2 text-left hover:bg-cream transition-colors"
+                      >
+                        {headline}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </div>

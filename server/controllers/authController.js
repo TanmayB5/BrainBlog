@@ -78,7 +78,12 @@ exports.login = async (req, res) => {
     }
 
     // Find user
+    console.log('Login attempt for email:', email);
     const { data: user, error: findError } = await supabase.from('user').select('*').eq('email', email.toLowerCase()).single();
+    console.log('User found:', !!user);
+    if (user) {
+      console.log('Stored hash:', user.password);
+    }
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -88,6 +93,7 @@ exports.login = async (req, res) => {
 
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
+    console.log('Password valid:', isPasswordValid);
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }

@@ -268,7 +268,7 @@ export default function BlogFeed() {
                           </div>
                           <div className="flex items-center gap-4">
                             <span className="flex items-center gap-1">
-                              📅 {formatDate(blog.createdAt)}
+                              📅 {formatDate(blog.createdat)}
                             </span>
                             <span className="flex items-center gap-1">
                               ⏱️ {getReadingTime(blog.content)} min
