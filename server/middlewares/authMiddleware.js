@@ -1,5 +1,6 @@
 // middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
+const supabase = require('../supabaseClient');
 
 const authenticateToken = async (req, res, next) => {
   try {
@@ -13,10 +14,7 @@ const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key');
     
     // Verify user still exists
-    const user = await req.prisma.user.findUnique({
-      where: { id: decoded.userId }
-    });
-    
+    const { data: user, error } = await supabase.from('user').select('*').eq('id', decoded.userId).single();
     if (!user) {
       return res.status(401).json({ message: 'Invalid token or user not found' });
     }
