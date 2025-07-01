@@ -14,9 +14,9 @@ export default function Home() {
 
   const fetchHomeData = async () => {
     try {
-      // Correct API function name
-      const blogsData = await blogAPI.getBlogs('?limit=6');
-      setFeaturedBlogs(blogsData.blogs?.slice(0, 6) || []);
+      // Fetch only 3 blogs for featured section
+      const blogsData = await blogAPI.getBlogs('?limit=3');
+      setFeaturedBlogs(blogsData.blogs?.slice(0, 3) || []);
       setStats({
         totalBlogs: 1247,
         totalUsers: 856,
@@ -189,7 +189,7 @@ export default function Home() {
             </div>
             {isLoading ? (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {[...Array(6)].map((_, i) => (
+                {[...Array(3)].map((_, i) => (
                   <div key={i} className="bg-white rounded-3xl p-6 shadow-lg animate-pulse border border-medium-beige">
                     <div className="h-4 bg-medium-beige rounded mb-4"></div>
                     <div className="h-6 bg-light-beige rounded mb-4"></div>
