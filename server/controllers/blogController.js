@@ -356,7 +356,7 @@ exports.generateSummary = async (req, res) => {
     
     if (useHuggingFace) {
       // Use Hugging Face for summarization with better prompt
-      const prompt = `Summarize the following blog content in exactly 2-3 sentences, maximum 150 characters: ${content}`;
+      const prompt = `Summarize the following blog content in 2-3 complete sentences. Make it engaging and informative: ${content}`;
       console.log('[AI SUMMARY] Using Hugging Face API...');
       
       try {
@@ -368,23 +368,27 @@ exports.generateSummary = async (req, res) => {
       } catch (error) {
         console.log('[AI SUMMARY] All summarization models failed, trying text generation...');
         summary = await callHuggingFaceAPI(
-          `Summarize this in 2-3 sentences: ${content}`,
+          `Summarize this in 2-3 complete sentences: ${content}`,
           "sshleifer/distilbart-cnn-12-6",
           ["facebook/bart-base", "facebook/bart-large-cnn"]
         );
       }
       
-      // Post-process to ensure it's concise
-      if (summary && summary.length > 150) {
-        const sentences = summary.split('.').filter(s => s.trim().length > 0);
-        summary = sentences.slice(0, 2).join('.') + '.';
-        if (summary.length > 150) {
-          summary = summary.substring(0, 147) + '...';
+      // Clean up the summary - remove any trailing ellipsis and ensure it ends properly
+      if (summary) {
+        summary = summary.trim();
+        // Remove trailing ellipsis if present
+        if (summary.endsWith('...')) {
+          summary = summary.slice(0, -3);
+        }
+        // Ensure it ends with a period
+        if (!summary.endsWith('.') && !summary.endsWith('!') && !summary.endsWith('?')) {
+          summary += '.';
         }
       }
     } else {
       // Fallback to OpenAI
-      const prompt = `Please provide a concise summary of the following blog content in exactly 2-3 sentences, maximum 150 characters:
+      const prompt = `Please provide a concise summary of the following blog content in 2-3 complete sentences. Make it engaging and informative:
 
 ${content}
 
@@ -394,10 +398,10 @@ Summary:`;
       summary = await callOpenAIAPI([
         { 
           role: 'system', 
-          content: 'You are a helpful assistant that creates concise, engaging summaries of blog content. Keep summaries under 150 characters when possible.' 
+          content: 'You are a helpful assistant that creates concise, engaging summaries of blog content. Write complete sentences without truncation.' 
         },
         { role: 'user', content: prompt }
-      ], 150);
+      ], 200);
     }
     
     console.log('[AI SUMMARY] Generated summary:', summary);
