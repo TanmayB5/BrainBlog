@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -14,12 +14,28 @@ import MyBlogs from './pages/MyBlogs';
 import Dashboard from './pages/Dashboard';
 import Unauthorized from './pages/Unauthorized';
 import Footer from './components/Footer';
+import { resetSEO } from './utils/seoUtils';
+
+// Component to handle SEO for different routes
+function SEOManager() {
+  const location = useLocation();
+  
+  useEffect(() => {
+    // Reset to default SEO for non-blog pages
+    if (!location.pathname.startsWith('/blog/')) {
+      resetSEO();
+    }
+  }, [location.pathname]);
+  
+  return null;
+}
 
 function App() {
   return (
     <AuthProvider>
       <Router>
         <div className="min-h-screen bg-cream flex flex-col">
+          <SEOManager />
           <Navbar />
           <div className="flex-1">
             <Routes>

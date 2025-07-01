@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { blogAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { updateBlogSEO, resetSEO } from "../utils/seoUtils";
 
 export default function BlogView() {
   const { id } = useParams();
@@ -45,6 +46,11 @@ export default function BlogView() {
     
     fetchBlog();
     blogAPI.incrementView(id).catch(() => {}); // Increment view count on mount
+    
+    // Reset SEO when component unmounts
+    return () => {
+      resetSEO();
+    };
   }, [id, navigate]);
 
   const fetchBlog = async () => {
@@ -62,10 +68,16 @@ export default function BlogView() {
       setIsLoading(true);
       
       const data = await blogAPI.getBlog(id);
-      setBlog(data.blog || data);
+      const blogData = data.blog || data;
+      setBlog(blogData);
       setRelatedPosts(data.relatedPosts || []);
-      setLikesCount(data.blog?.likesCount || 0);
-      setComments(data.blog?.comments || []);
+      setLikesCount(blogData?.likesCount || 0);
+      setComments(blogData?.comments || []);
+      
+      // Update SEO meta tags with blog data
+      if (blogData) {
+        updateBlogSEO(blogData);
+      }
     } catch (error) {
       console.error('Error fetching blog:', error);
       setError('Failed to load blog. Please try again.');
