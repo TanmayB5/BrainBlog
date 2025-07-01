@@ -16,19 +16,7 @@ export const aiService = {
     return data.summary;
   },
 
-  generateHeadlines: async (title, content) => {
-    const response = await fetch(`${API_BASE_URL}/blogs/generate-headlines`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify({ title, content }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Failed to generate headlines');
-    return data.headlines;
-  },
+
 
   generateSEOContent: async (title, content) => {
     const response = await fetch(`${API_BASE_URL}/blogs/generate-seo`, {

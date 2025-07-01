@@ -597,53 +597,7 @@ exports.addComment = async (req, res) => {
   }
 };
 
-exports.generateHeadlines = async (req, res) => {
-  try {
-    const { title, content } = req.body;
-    if (!content) {
-      return res.status(400).json({ message: 'Content is required.' });
-    }
 
-    if (!useHuggingFace && !openai) {
-      return res.status(503).json({ message: 'AI service not available. Set HUGGINGFACE_API_KEY or OPENAI_API_KEY.' });
-    }
-
-    let headlinesRaw;
-    let headlines = [];
-    
-    const prompt = `Generate 3 creative, catchy, and SEO-friendly blog post headlines for the following content. Each headline should be on a new line, numbered 1 to 3. Do NOT repeat the content, only output the headlines.\n\nContent:\n${content.substring(0, 800)}\n\nHeadlines:\n1.`;
-    
-    if (useHuggingFace) {
-      headlinesRaw = await callHuggingFaceAPI(
-        prompt, 
-        "sshleifer/distilbart-cnn-12-6",
-        ["facebook/bart-base", "facebook/bart-large-cnn"]
-      );
-    } else {
-      headlinesRaw = await callOpenAIAPI([
-        { 
-          role: 'system', 
-          content: 'You are a headline generation expert. Create engaging, SEO-friendly blog post titles.' 
-        },
-        { role: 'user', content: prompt }
-      ], 200);
-    }
-    
-    // Parse the response to extract headlines
-    headlines = headlinesRaw
-      .split('\n')
-      .map(line => line.replace(/^\d+\.\s*/, '').trim())
-      .filter(line => line.length > 0 && line.length < 120);
-    
-    // Only return up to 3 headlines
-    headlines = headlines.slice(0, 3);
-    
-    res.json({ headlines });
-  } catch (error) {
-    console.error('AI headlines error:', error);
-    res.status(500).json({ message: 'Failed to generate headlines', error: error.message });
-  }
-};
 
 module.exports = {
   createBlog: exports.createBlog,
@@ -660,6 +614,5 @@ module.exports = {
   generateSEOContent: exports.generateSEOContent,
   enhanceContent: exports.enhanceContent,
   generateTags: exports.generateTags,
-  addComment: exports.addComment,
-  generateHeadlines: exports.generateHeadlines
+  addComment: exports.addComment
 };

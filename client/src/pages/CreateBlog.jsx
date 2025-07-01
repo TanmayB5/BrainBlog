@@ -27,7 +27,7 @@ export default function CreateBlog() {
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [readingTime, setReadingTime] = useState(0);
-  const [headlineOptions, setHeadlineOptions] = useState([]);
+
 
   React.useEffect(() => {
     // Calculate word count and reading time
@@ -67,32 +67,7 @@ export default function CreateBlog() {
     }
   };
 
-  const generateHeadlines = async () => {
-    if (!formData.content) {
-      setError('Please write some content first!');
-      return;
-    }
-    setAiLoading(true);
-    try {
-      const headlines = await aiService.generateHeadlines(formData.title, formData.content);
-      setHeadlineOptions(headlines);
-      setAiResults(prev => ({ ...prev, headlines: true }));
-      setError(''); // Clear any previous errors
-    } catch (error) {
-      console.error('Headline generation error:', error);
-      setError('Failed to generate headlines. Please try again.');
-    } finally {
-      setAiLoading(false);
-    }
-  };
 
-  const selectHeadline = (headline) => {
-    setFormData(prev => ({
-      ...prev,
-      title: headline
-    }));
-    setHeadlineOptions([]);
-  };
 
   const generateSEOContent = async () => {
     if (!formData.title || !formData.content) {
@@ -290,20 +265,6 @@ export default function CreateBlog() {
                   <div className="grid md:grid-cols-2 gap-4">
                     <button
                       type="button"
-                      onClick={generateHeadlines}
-                      disabled={aiLoading}
-                      className="bg-white border border-medium-beige p-4 rounded-lg hover:bg-cream transition-colors text-left disabled:opacity-50"
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-2xl">📰</span>
-                        <span className="font-semibold text-text-dark">Generate Headlines</span>
-                        {aiResults.headlines && <span className="text-green-600">✅</span>}
-                      </div>
-                      <p className="text-text-medium text-sm">Create catchy blog post titles</p>
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={generateSEOContent}
                       disabled={aiLoading}
                       className="bg-white border border-medium-beige p-4 rounded-lg hover:bg-cream transition-colors text-left disabled:opacity-50"
@@ -318,14 +279,14 @@ export default function CreateBlog() {
 
                     <button
                       type="button"
-                      onClick={enhanceContent}
+                      onClick={generateAISummary}
                       disabled={aiLoading}
                       className="bg-white border border-medium-beige p-4 rounded-lg hover:bg-cream transition-colors text-left disabled:opacity-50"
                     >
                       <div className="flex items-center gap-3 mb-2">
                         <span className="text-2xl">📝</span>
                         <span className="font-semibold text-text-dark">AI Summarize</span>
-                        {aiResults.enhancement && <span className="text-green-600">✅</span>}
+                        {aiResults.summary && <span className="text-green-600">✅</span>}
                       </div>
                       <p className="text-text-medium text-sm">Create an AI-powered summary of your content</p>
                     </button>
@@ -512,23 +473,7 @@ export default function CreateBlog() {
                 </div>
               </div>
 
-              {headlineOptions.length > 0 && (
-                <div className="mb-4">
-                  <div className="font-medium text-text-dark mb-2">Choose a headline:</div>
-                  <div className="flex flex-col gap-2">
-                    {headlineOptions.map((headline, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => selectHeadline(headline)}
-                        className="bg-light-beige border border-medium-beige rounded-lg px-4 py-2 text-left hover:bg-cream transition-colors"
-                      >
-                        {headline}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+
             </form>
           </div>
         </div>
