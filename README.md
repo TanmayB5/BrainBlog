@@ -117,9 +117,9 @@ A modern, intelligent blog platform that leverages AI to enhance content creatio
 
 ## 📁 Project Structure
 brainblog/
-├── client/ # Frontend React application
-│ ├── src/
-│ │ ├── components/ # Reusable UI components
+├── client/ # Frontend React application 
+│ ├── src/ 
+│ │ ├── components/ # Reusable UI components 
 │ │ ├── pages/ # Page components
 │ │ ├── services/ # API services
 │ │ └── styles/ # CSS and styling
@@ -170,4 +170,3 @@ If you have any questions or need help:
 
 ---
 
-**Made with ❤️ and AI intelligence**
